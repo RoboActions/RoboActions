@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=70.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roboactions"
+version = "0.1.0"
+description = "Python client SDK for the RoboActions automation platform."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "Apache License 2.0"}
+authors = [
+  {name = "RoboActions", email = "support@roboactions.com"}
+]
+keywords = ["automation", "workflow", "sdk", "client", "roboactions"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+dependencies = [
+    "requests>=2.32.3",
+    "pydantic>=2.8.2",
+    "msgpack>=1.0.0",
+    "numpy>=1.24.0",
+    "torch",
+    "torchvision",
+    "torchaudio"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.1",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "mypy>=1.10"
+]
+
+[project.urls]
+Homepage = "https://www.roboactions.com"
+Documentation = "https://docs.roboactions.com/sdk/python"
+Repository = "https://github.com/roboactions/roboactions-python-sdk"
+Issues = "https://github.com/roboactions/roboactions-python-sdk/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra -q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I"]
+exclude = [".git", ".venv", "build", "dist"]
+
+[tool.coverage.run]
+branch = true
+source = ["roboactions"]
