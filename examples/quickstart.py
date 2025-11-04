@@ -34,8 +34,8 @@ def main() -> None:
         # Retrieve feature schemas
         input_features = policy.input_features()
         output_features = policy.output_features()
-        print(f"Input features: {list(input_features["input_features"].keys())}")
-        print(f"Output features: {list(output_features["output_features"].keys())}")
+        print(f"Input features: {list(input_features['input_features'].keys())}")
+        print(f"Output features: {list(output_features['output_features'].keys())}")
 
         # Reset policy state (optional - useful for stateful policies)
         reset_result = policy.reset()
