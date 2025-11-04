@@ -160,7 +160,7 @@ except RoboActionsError as e:
 
 ## Releasing
 
-1. Update `src/roboactions/_version.py` and `pyproject.toml`.
+1. Update `src/roboactions/_version.py`.
 2. Build artifacts: `python -m build`.
 3. Upload to PyPI (test or prod) using `twine upload dist/*`.
 

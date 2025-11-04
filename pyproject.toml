@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "roboactions"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Python client SDK for the RoboActions automation platform."
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "Apache License 2.0"}
+license = {file = "LICENSE"}
 authors = [
-  {name = "RoboActions", email = "support@roboactions.com"}
+  {name = "RoboActions", email = "eishan@roboactions.com"}
 ]
 keywords = ["automation", "workflow", "sdk", "client", "roboactions"]
 classifiers = [
@@ -48,8 +48,11 @@ dev = [
 [project.urls]
 Homepage = "https://www.roboactions.com"
 Documentation = "https://docs.roboactions.com/sdk/python"
-Repository = "https://github.com/roboactions/roboactions-python-sdk"
-Issues = "https://github.com/roboactions/roboactions-python-sdk/issues"
+Repository = "https://github.com/RoboActions/RoboActions"
+Issues = "https://github.com/RoboActions/RoboActions/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "roboactions._version.__version__"}
 
 [tool.setuptools]
 package-dir = {"" = "src"}
