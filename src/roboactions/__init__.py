@@ -8,11 +8,12 @@ from .exceptions import (
     RateLimitError,
     RoboActionsError,
 )
-from .policy import PolicyStatus, RemotePolicy
+from .policy import PolicyStatus, PolicySummary, RemotePolicy
 
 __all__ = [
     "RemotePolicy",
     "PolicyStatus",
+    "PolicySummary",
     "RoboActionsError",
     "AuthenticationError",
     "AuthorizationError",

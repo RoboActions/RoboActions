@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Tuple
 
@@ -48,6 +49,26 @@ _BASE_POLICY_HEADERS: MutableMapping[str, str] = {
     "Content-Type": "application/json",
     "Accept": "application/json",
 }
+
+
+@dataclass(frozen=True)
+class PolicySummary:
+    """Summary information for a policy returned by `/v1/policy/list`."""
+
+    policy_id: str
+    display_name: str
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "PolicySummary":
+        policy_id = payload.get("policy_id")
+        if not isinstance(policy_id, str) or not policy_id.strip():
+            raise ValueError("Response from /v1/policy/list did not include a valid `policy_id`.")
+
+        display_name = payload.get("display_name")
+        if not isinstance(display_name, str):
+            display_name = ""
+
+        return cls(policy_id=policy_id, display_name=display_name)
 
 
 class RemotePolicy:
@@ -139,6 +160,68 @@ class RemotePolicy:
             default_headers=default_headers,
             session=session,
         )
+
+    @classmethod
+    def list(
+        cls,
+        *,
+        api_key: Optional[str] = None,
+        base_url: str = DEFAULT_REMOTE_POLICY_BASE_URL,
+        timeout: float = DEFAULT_TIMEOUT,
+        retries: Optional[RetryConfig] = None,
+        default_headers: Optional[Mapping[str, str]] = None,
+        session: Optional[requests.Session] = None,
+    ) -> List[PolicySummary]:
+        """Return all policies for the authenticated user via `/v1/policy/list`."""
+
+        if api_key is None:
+            api_key = os.environ.get("ROBOACTIONS_API_KEY")
+
+        if not api_key:
+            raise ValueError(
+                "api_key is required. Provide it explicitly or set the ROBOACTIONS_API_KEY environment variable."
+            )
+
+        if retries is None:
+            retries = RetryConfig()
+
+        headers: MutableMapping[str, str] = dict(_BASE_POLICY_HEADERS)
+        if default_headers:
+            headers.update(default_headers)
+
+        client = HttpClient(
+            config=ClientConfig(
+                api_key=api_key,
+                base_url=base_url,
+                timeout=timeout,
+                default_headers=headers,
+                retries=retries,
+            ),
+            session=session,
+        )
+
+        owns_session = session is None
+
+        try:
+            response = client.request(
+                "GET",
+                "/v1/policy/list",
+                timeout=timeout,
+            )
+        finally:
+            if owns_session:
+                client.close()
+
+        if not isinstance(response, list):
+            raise TypeError("Expected list response from /v1/policy/list")
+
+        summaries: List[PolicySummary] = []
+        for item in response:
+            if not isinstance(item, Mapping):
+                raise TypeError("Expected mapping items in /v1/policy/list response")
+            summaries.append(PolicySummary.from_payload(item))
+
+        return summaries
 
     def __init__(
         self,

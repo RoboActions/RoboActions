@@ -1,6 +1,6 @@
 import pytest
 
-from roboactions.policy import PolicyStatus, RemotePolicy
+from roboactions.policy import PolicyStatus, PolicySummary, RemotePolicy
 
 
 class StubHttpClient:
@@ -78,6 +78,72 @@ def test_create_policy_returns_remote_policy(monkeypatch):
     assert policy_headers["x-policy-id"] == "pol-new"
     assert policy_headers["X-Custom"] == "42"
     assert policy_client.config.base_url == "https://api.roboactions.com"
+
+
+def test_policy_summary_from_payload_requires_policy_id():
+    with pytest.raises(ValueError, match="policy_id"):
+        PolicySummary.from_payload({"display_name": "Unnamed"})
+
+
+def test_remote_policy_list_returns_policy_summaries(monkeypatch):
+    clients = []
+
+    def http_factory(config, session=None):
+        client = StubHttpClient(config, session=session)
+        client.enqueue(
+            [
+                {"policy_id": "pol-1", "display_name": "Policy One"},
+                {"policy_id": "pol-2", "display_name": "Policy Two"},
+            ]
+        )
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr("roboactions.policy.HttpClient", http_factory)
+
+    summaries = RemotePolicy.list(api_key="rk_test")
+
+    assert summaries == [
+        PolicySummary(policy_id="pol-1", display_name="Policy One"),
+        PolicySummary(policy_id="pol-2", display_name="Policy Two"),
+    ]
+
+    assert len(clients) == 1
+    method, path, kwargs = clients[0].requests[0]
+    assert (method, path) == ("GET", "/v1/policy/list")
+    assert kwargs["timeout"] == clients[0].config.timeout
+    headers = clients[0].config.default_headers
+    assert headers["Accept"] == "application/json"
+    assert headers["Content-Type"] == "application/json"
+
+
+def test_remote_policy_list_rejects_non_list_response(monkeypatch):
+    def http_factory(config, session=None):
+        client = StubHttpClient(config, session=session)
+        client.enqueue({"policy_id": "not-a-list"})
+        return client
+
+    monkeypatch.setattr("roboactions.policy.HttpClient", http_factory)
+
+    with pytest.raises(TypeError, match="Expected list response"):
+        RemotePolicy.list(api_key="rk_test")
+
+
+def test_remote_policy_list_requires_mapping_items(monkeypatch):
+    def http_factory(config, session=None):
+        client = StubHttpClient(config, session=session)
+        client.enqueue(
+            [
+                {"policy_id": "pol-1", "display_name": "Policy One"},
+                "invalid-item",
+            ]
+        )
+        return client
+
+    monkeypatch.setattr("roboactions.policy.HttpClient", http_factory)
+
+    with pytest.raises(TypeError, match="Expected mapping items"):
+        RemotePolicy.list(api_key="rk_test")
 
 
 def test_create_policy_requires_policy_id(monkeypatch):
