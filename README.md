@@ -30,6 +30,11 @@ print(f"Policy status: {status.value}")
 input_features = policy.input_features()
 output_features = policy.output_features()
 
+# Discover existing policies
+policies = RemotePolicy.list()
+for summary in policies:
+    print(f"{summary.policy_id}: {summary.display_name}")
+
 # Run inference
 observation = {
     "observation_image": image_array,
@@ -38,6 +43,10 @@ observation = {
 }
 action = policy.select_action(observation)
 print(f"Predicted action: {action}")
+
+# Predict multiple timesteps at once
+action_chunk = policy.predict_action_chunk(observation)
+print(f"Chunked action output: {action_chunk}")
 ```
 
 ## Authentication
@@ -87,6 +96,22 @@ reconnected = RemotePolicy(policy_id=policy.policy_id)
 ```
 
 ## Core Features
+
+### Policy Management
+
+```python
+# List all policies the current API key can access
+from roboactions import RemotePolicy
+
+policies = RemotePolicy.list()
+for summary in policies:
+    print(f"{summary.policy_id}: {summary.display_name}")
+
+# Delete a policy you no longer need
+policy = RemotePolicy(policy_id="my-policy-id")
+delete_result = policy.delete()
+print(f"Delete response: {delete_result}")
+```
 
 ### Health Checks
 
@@ -141,6 +166,15 @@ action_chunk = policy.predict_action_chunk(observation)
 # Generate random sample inputs (useful for testing)
 sample_inputs = policy.sample_observation()
 action = policy.select_action(sample_inputs)
+```
+
+### Observation Shapes Cache
+
+```python
+# Retrieve observation tensor dimensions discovered via input_features
+policy.input_features()
+for key, shape in policy.observation_shapes:
+    print(f"{key}: {shape}")
 ```
 
 ## Configuration

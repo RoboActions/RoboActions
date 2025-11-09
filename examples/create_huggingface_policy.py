@@ -25,6 +25,11 @@ def main() -> None:
         print(f"Created policy: {policy.policy_id}")
         print(f"Compute type: {compute_type.upper()}")
 
+        all_policies = RemotePolicy.list(api_key=api_key)
+        print("Policies accessible to this API key:")
+        for summary in all_policies:
+            print(f"- {summary.policy_id}: {summary.display_name}")
+
         status = policy.status()
         print(f"Initial status: {status.value}")
 
@@ -39,6 +44,12 @@ def main() -> None:
     print("Reconnecting to the new policy instance...")
     with RemotePolicy(policy_id=policy.policy_id) as reconnected:
         print(f"Reconnected policy status: {reconnected.status().value}")
+
+        delete_after_demo = os.environ.get("ROBOACTIONS_DELETE_AFTER_CREATE", "").lower()
+        if delete_after_demo in {"1", "true", "yes"}:
+            print("Deleting policy after demo...")
+            delete_result = reconnected.delete()
+            print(f"Delete response: {delete_result}")
 
 
 if __name__ == "__main__":

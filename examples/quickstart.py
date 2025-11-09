@@ -8,9 +8,19 @@ from roboactions import PolicyStatus, RemotePolicy
 def main() -> None:
     # RemotePolicy automatically reads ROBOACTIONS_API_KEY from environment
     # You can also pass api_key explicitly: RemotePolicy(policy_id="...", api_key="...")
+    api_key = os.environ.get("ROBOACTIONS_API_KEY")
+    if not api_key:
+        raise SystemExit("Set ROBOACTIONS_API_KEY before running the example")
+
     policy_id = os.environ.get("ROBOACTIONS_POLICY_ID")
     if not policy_id:
         raise SystemExit("Set ROBOACTIONS_POLICY_ID before running the example")
+
+    # Discover policies available to the current API key
+    policies = RemotePolicy.list(api_key=api_key)
+    print("Available policies:")
+    for summary in policies:
+        print(f"- {summary.policy_id}: {summary.display_name}")
 
     # Create a remote policy client with context manager for automatic cleanup
     with RemotePolicy(policy_id=policy_id) as policy:
@@ -36,6 +46,9 @@ def main() -> None:
         output_features = policy.output_features()
         print(f"Input features: {list(input_features['input_features'].keys())}")
         print(f"Output features: {list(output_features['output_features'].keys())}")
+        print("Observation shapes:")
+        for key, shape in policy.observation_shapes:
+            print(f"  {key}: {shape}")
 
         # Reset policy state (optional - useful for stateful policies)
         reset_result = policy.reset()
@@ -49,6 +62,10 @@ def main() -> None:
         sample_obs = policy.sample_observation()
         action = policy.select_action(sample_obs)
         print(f"Predicted action shape: {action.shape if hasattr(action, 'shape') else type(action)}")
+        action_chunk = policy.predict_action_chunk(sample_obs)
+        print(
+            f"Predicted action chunk type: {action_chunk.shape if hasattr(action_chunk, 'shape') else type(action_chunk)}"
+        )
 
 
 if __name__ == "__main__":
