@@ -470,3 +470,37 @@ def test_reset_returns_failure_with_error(monkeypatch):
 
     assert result == {"reset": False, "error": "Policy is not in a resettable state"}
     assert http.requests[0] == ("GET", "/v1/policy/reset", {"timeout": None})
+
+
+def test_delete_policy_posts_to_delete_endpoint(monkeypatch):
+    monkeypatch.setattr("roboactions.policy.HttpClient", StubHttpClient)
+
+    policy = RemotePolicy(policy_id="pol-del", api_key="rk_test")
+    http = policy._http  # type: ignore[attr-defined]
+
+    http.enqueue({"deleted": True})
+    result = policy.delete()
+
+    assert result == {"deleted": True}
+    assert http.requests == [
+        (
+            "POST",
+            "/v1/policy/delete",
+            {
+                "json_body": {"policy_id": "pol-del"},
+                "timeout": None,
+            },
+        )
+    ]
+
+
+def test_delete_policy_requires_mapping_response(monkeypatch):
+    monkeypatch.setattr("roboactions.policy.HttpClient", StubHttpClient)
+
+    policy = RemotePolicy(policy_id="pol-del", api_key="rk_test")
+    http = policy._http  # type: ignore[attr-defined]
+
+    http.enqueue(["not-a-mapping"])
+
+    with pytest.raises(TypeError, match="mapping response"):
+        policy.delete()

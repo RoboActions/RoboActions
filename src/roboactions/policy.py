@@ -370,6 +370,21 @@ class RemotePolicy:
 
         return self._get_json("/v1/policy/reset", timeout=timeout)
 
+    def delete(self, *, timeout: Optional[float] = None) -> Dict[str, Any]:
+        """Delete the policy via `/v1/policy/delete`."""
+
+        response = self._http.request(
+            "POST",
+            "/v1/policy/delete",
+            json_body={"policy_id": self.policy_id},
+            timeout=timeout,
+        )
+
+        if not isinstance(response, Mapping):
+            raise TypeError("Expected mapping response from /v1/policy/delete")
+
+        return dict(response)
+
     # ------------------------------------------------------------------
     # Internal helpers
 
