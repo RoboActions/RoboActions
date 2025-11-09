@@ -37,6 +37,100 @@ class TimeStub:
         self._now += seconds
 
 
+def test_create_policy_returns_remote_policy(monkeypatch):
+    clients = []
+
+    def http_factory(config, session=None):
+        client = StubHttpClient(config, session=session)
+        if not clients:
+            client.enqueue({"policy_id": "pol-new"})
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr("roboactions.policy.HttpClient", http_factory)
+
+    policy = RemotePolicy.create(
+        huggingface_model_id="org/model",
+        api_key="rk_test",
+        default_headers={"X-Custom": "42"},
+    )
+
+    assert isinstance(policy, RemotePolicy)
+    assert policy.policy_id == "pol-new"
+    assert len(clients) == 2
+
+    create_client = clients[0]
+    policy_client = clients[1]
+
+    method, path, kwargs = create_client.requests[0]
+    assert (method, path) == ("POST", "/v1/policy/create")
+    assert kwargs["json_body"] == {"huggingface_model_id": "org/model", "compute_type": "GPU"}
+    assert kwargs["timeout"] == create_client.config.timeout
+
+    create_headers = create_client.config.headers_with_auth()
+    assert create_headers["Authorization"] == "Bearer rk_test"
+    assert "x-policy-id" not in create_headers
+    assert create_client.config.default_headers["Accept"] == "application/json"
+    assert create_client.config.default_headers["X-Custom"] == "42"
+
+    policy_headers = policy_client.config.headers_with_auth()
+    assert policy_headers["Authorization"] == "Bearer rk_test"
+    assert policy_headers["x-policy-id"] == "pol-new"
+    assert policy_headers["X-Custom"] == "42"
+    assert policy_client.config.base_url == "https://api.roboactions.com"
+
+
+def test_create_policy_requires_policy_id(monkeypatch):
+    def http_factory(config, session=None):
+        client = StubHttpClient(config, session=session)
+        client.enqueue({})
+        return client
+
+    monkeypatch.setattr("roboactions.policy.HttpClient", http_factory)
+
+    with pytest.raises(ValueError, match="policy_id"):
+        RemotePolicy.create(api_key="rk_test", huggingface_model_id="org/model")
+
+
+def test_create_policy_requires_model_id(monkeypatch):
+    monkeypatch.setattr("roboactions.policy.HttpClient", StubHttpClient)
+
+    with pytest.raises(ValueError, match="huggingface_model_id"):
+        RemotePolicy.create(huggingface_model_id="", api_key="rk_test")
+
+
+def test_create_policy_allows_compute_type_override(monkeypatch):
+    clients = []
+
+    def http_factory(config, session=None):
+        client = StubHttpClient(config, session=session)
+        if not clients:
+            client.enqueue({"policy_id": "pol-cpu"})
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr("roboactions.policy.HttpClient", http_factory)
+
+    policy = RemotePolicy.create(
+        huggingface_model_id="org/model",
+        compute_type="cpu",
+        api_key="rk_test",
+    )
+
+    assert policy.policy_id == "pol-cpu"
+
+    method, path, kwargs = clients[0].requests[0]
+    assert (method, path) == ("POST", "/v1/policy/create")
+    assert kwargs["json_body"] == {"huggingface_model_id": "org/model", "compute_type": "CPU"}
+
+
+def test_create_policy_rejects_invalid_compute_type(monkeypatch):
+    monkeypatch.setattr("roboactions.policy.HttpClient", StubHttpClient)
+
+    with pytest.raises(ValueError, match="either 'CPU' or 'GPU'"):
+        RemotePolicy.create(huggingface_model_id="org/model", compute_type="TPU", api_key="rk_test")
+
+
 def test_remote_policy_requires_identifiers():
     with pytest.raises(ValueError):
         RemotePolicy(policy_id="", api_key="rk_test")

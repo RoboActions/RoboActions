@@ -53,6 +53,93 @@ _BASE_POLICY_HEADERS: MutableMapping[str, str] = {
 class RemotePolicy:
     """Fetch remote policy metadata from the RoboActions API."""
 
+    @classmethod
+    def create(
+        cls,
+        *,
+        huggingface_model_id: str,
+        compute_type: str = "GPU",
+        api_key: Optional[str] = None,
+        base_url: str = DEFAULT_REMOTE_POLICY_BASE_URL,
+        timeout: float = DEFAULT_TIMEOUT,
+        retries: Optional[RetryConfig] = None,
+        default_headers: Optional[Mapping[str, str]] = None,
+        session: Optional[requests.Session] = None,
+    ) -> "RemotePolicy":
+        """Create a new policy via `/v1/policy/create` and return a configured client."""
+
+        if not isinstance(huggingface_model_id, str) or not huggingface_model_id.strip():
+            raise ValueError("huggingface_model_id is required")
+
+        if not isinstance(compute_type, str):
+            raise ValueError("compute_type must be a string")
+
+        normalized_compute_type = compute_type.strip().upper()
+        if normalized_compute_type not in {"CPU", "GPU"}:
+            raise ValueError("compute_type must be either 'CPU' or 'GPU'")
+
+        if api_key is None:
+            api_key = os.environ.get("ROBOACTIONS_API_KEY")
+
+        if not api_key:
+            raise ValueError(
+                "api_key is required. Provide it explicitly or set the ROBOACTIONS_API_KEY environment variable."
+            )
+
+        if retries is None:
+            retries = RetryConfig()
+
+        headers: MutableMapping[str, str] = dict(_BASE_POLICY_HEADERS)
+        if default_headers:
+            headers.update(default_headers)
+
+        client = HttpClient(
+            config=ClientConfig(
+                api_key=api_key,
+                base_url=base_url,
+                timeout=timeout,
+                default_headers=headers,
+                retries=retries,
+            ),
+            session=session,
+        )
+
+        owns_session = session is None
+
+        try:
+            body: Dict[str, Any] = {
+                "huggingface_model_id": huggingface_model_id.strip(),
+                "compute_type": normalized_compute_type,
+            }
+            response = client.request(
+                "POST",
+                "/v1/policy/create",
+                json_body=body,
+                timeout=timeout,
+            )
+        finally:
+            if owns_session:
+                client.close()
+
+        if not isinstance(response, Mapping):
+            raise TypeError("Expected mapping response from /v1/policy/create")
+
+        policy_id = response.get("policy_id")
+        if not isinstance(policy_id, str) or not policy_id.strip():
+            raise ValueError(
+                "Response from /v1/policy/create did not include a valid `policy_id`."
+            )
+
+        return cls(
+            policy_id=policy_id,
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            retries=retries,
+            default_headers=default_headers,
+            session=session,
+        )
+
     def __init__(
         self,
         *,

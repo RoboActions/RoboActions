@@ -67,6 +67,25 @@ policy = RemotePolicy(
 
 For security, it's recommended to use environment variables rather than hardcoding keys in your source code.
 
+## Creating Policies
+
+Use `RemotePolicy.create` to provision a policy directly from the SDK. The method handles authentication, and returns a ready-to-use client. Persist the returned `policy_id` if you plan to reconnect later. Set `compute_type` to `"CPU"` or `"GPU"` (default).
+
+```python
+from roboactions import RemotePolicy
+
+policy = RemotePolicy.create(
+    huggingface_model_id="my-org/my-robot-policy",
+    compute_type="CPU",  # optional; defaults to "GPU"
+    # api_key="rk_live_abc123",  # optional overrides
+)
+
+print(f"New policy: {policy.policy_id}")
+
+# Reconnect elsewhere in your application with the policy ID
+reconnected = RemotePolicy(policy_id=policy.policy_id)
+```
+
 ## Core Features
 
 ### Health Checks
