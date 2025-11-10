@@ -182,10 +182,10 @@ for key, shape in policy.observation_shapes:
 Interact with Gymnasium-compatible environments hosted via RoboActions over a secure WebSocket.
 
 ```python
-from roboactions import RemoteEnv
+from roboactions import remotegym
 
 # Reads ROBOACTIONS_API_KEY from environment if not provided explicitly
-env = RemoteEnv("CartPole-v1", render_mode="rgb_array")
+env = remotegym.make("CartPole-v1", render_mode="rgb_array")
 
 # Standard Gymnasium flow
 obs, info = env.reset(seed=123)
@@ -202,6 +202,14 @@ Notes:
 - `render()` returns a NumPy RGB array when `render_mode="rgb_array"`; otherwise returns `None`.
 - The client pre-validates actions using the real Gymnasium `action_space`.
 - If a step ends an episode, call `reset()` before the next `step()`.
+- On connect, the server performs `reset(seed=seed)` and returns the initial `observation` and `info`.
+- Additional properties exposed:
+  - `observation_space`: Gymnasium space describing observations
+  - `metadata`: Full `env.metadata` dict (e.g., `render_modes`, `render_fps`)
+  - `spec`: `None` (standard Gymnasium attribute); raw mapping available via `server_spec`
+  - `initial_observation`, `initial_info`: Values returned alongside `make_ok`
+  - `render_mode`: The render mode passed at construction
+  - `reward_range`: Default `(-inf, inf)` per Gymnasium
 
 ## Configuration
 

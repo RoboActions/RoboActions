@@ -30,6 +30,7 @@ except Exception as exc:  # pragma: no cover - exercised in environments lacking
     raise RuntimeError(
         "gymnasium is required for RemoteEnv. Install with `pip install gymnasium`."
     ) from exc
+from gymnasium.utils import seeding as gym_seeding  # type: ignore[attr-defined]
 
 try:
     # websocket-client library
@@ -146,7 +147,7 @@ def _decode_png_base64_to_ndarray(data_b64: str) -> np.ndarray:
 
 # ---- RemoteEnv ---------------------------------------------------------------
 
-class RemoteEnv:
+class RemoteEnv(gym.Env):
     """Remote Gymnasium environment over WebSocket.
 
     Example:
@@ -187,6 +188,16 @@ class RemoteEnv:
         self._ws: Optional[Any] = None
         self._needs_reset = False
         self._action_space: Optional["gym.spaces.Space"] = None
+        self._observation_space: Optional["gym.spaces.Space"] = None
+        self._metadata: Mapping[str, Any] = {}
+        self._server_spec: Mapping[str, Any] = {}
+        self._initial_observation: Any = None
+        self._initial_info: Mapping[str, Any] = {}
+        self._initial_pending: bool = False
+        # Standard Gymnasium attributes
+        self.spec = None  # Explicitly no EnvSpec; raw mapping available via server_spec
+        self.reward_range: Tuple[float, float] = (-float("inf"), float("inf"))
+        self.np_random = None  # initialized on reset(seed=...)
 
         # Connect and make the environment
         self._connect(_ws_override=_ws_override, default_headers=default_headers)
@@ -209,6 +220,31 @@ class RemoteEnv:
             raise TransportError("make_ok missing 'action_space'")
         self._action_space = _space_from_schema(action_schema)
 
+        # Observation space (same schema grammar as action_space)
+        obs_schema = payload.get("observation_space")
+        if not isinstance(obs_schema, Mapping):
+            raise TransportError("make_ok missing 'observation_space'")
+        self._observation_space = _space_from_schema(obs_schema)
+
+        # Metadata and spec are opaque mappings
+        metadata = payload.get("metadata") or {}
+        if not isinstance(metadata, Mapping):
+            metadata = {}
+        self._metadata = dict(metadata)
+
+        spec = payload.get("spec") or {}
+        if not isinstance(spec, Mapping):
+            spec = {}
+        self._server_spec = dict(spec)
+
+        # Initial observation and info returned from server make/reset(seed)
+        self._initial_observation = payload.get("observation")
+        initial_info = payload.get("info") or {}
+        if not isinstance(initial_info, Mapping):
+            initial_info = {}
+        self._initial_info = dict(initial_info)
+        self._initial_pending = True
+
     # ---------------- Context manager ----------------
     def __enter__(self) -> "RemoteEnv":  # pragma: no cover - trivial
         return self
@@ -223,11 +259,65 @@ class RemoteEnv:
             raise RuntimeError("Environment not initialized with action space")
         return self._action_space
 
+    @property
+    def observation_space(self) -> "gym.spaces.Space":
+        if self._observation_space is None:
+            raise RuntimeError("Environment not initialized with observation space")
+        return self._observation_space
+
+    @property
+    def metadata(self) -> Mapping[str, Any]:
+        return self._metadata
+
+    @property
+    def server_spec(self) -> Mapping[str, Any]:
+        return self._server_spec
+
+    @property
+    def initial_observation(self) -> Any:
+        return self._initial_observation
+
+    @property
+    def initial_info(self) -> Mapping[str, Any]:
+        return self._initial_info
+    
+    @property
+    def render_mode(self) -> Optional[str]:
+        return self._render_mode
+
     # ---------------- Public API ----------------
-    def reset(self, *, seed: Optional[int] = None) -> Tuple[Any, Mapping[str, Any]]:
+    def reset(
+        self,
+        *,
+        seed: Optional[int] = None,
+        options: Optional[Mapping[str, Any]] = None,
+    ) -> Tuple[Any, Mapping[str, Any]]:
         """Reset the remote environment."""
         self._ensure_open()
-        self._send_json({"op": "reset", **({"seed": int(seed)} if seed is not None else {})})
+        # Short-circuit: immediately after make(), the first observation was provided
+        if seed is None and options is None and self._initial_pending:
+            self._initial_pending = False
+            self._needs_reset = False
+            info = self._initial_info or {}
+            if not isinstance(info, Mapping):
+                info = {}
+            return self._initial_observation, dict(info)
+        # Initialize Gymnasium RNG if seed provided
+        if seed is not None:
+            try:
+                if gym_seeding is not None:
+                    self.np_random, _ = gym_seeding.np_random(seed)
+                else:
+                    self.np_random = np.random.default_rng(seed)
+            except Exception:
+                self.np_random = np.random.default_rng(seed)
+        # Send reset over wire; include options when provided
+        reset_msg: MutableMapping[str, Any] = {"op": "reset"}
+        if seed is not None:
+            reset_msg["seed"] = int(seed)
+        if options is not None:
+            reset_msg["options"] = dict(options)
+        self._send_json(reset_msg)
         payload = self._recv_json()
         if payload.get("type") == "error":
             self._raise_error(payload)
@@ -245,6 +335,9 @@ class RemoteEnv:
         self._ensure_open()
         if self._needs_reset:
             raise RoboActionsError("NEEDS_RESET: Call reset() before step()")
+        # Consuming the pending initial observation by stepping
+        if self._initial_pending:
+            self._initial_pending = False
         # Pre-validate quickly on client side
         if self._action_space is not None and not self._action_space.contains(action):
             raise RoboActionsError("INVALID_ACTION: Action not contained in action_space")

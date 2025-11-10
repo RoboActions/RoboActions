@@ -36,6 +36,15 @@ def make_ok_frame_discrete2():
         {
             "type": "make_ok",
             "action_space": {"type": "Discrete", "n": 2},
+            "observation_space": {
+                "type": "Box",
+                "shape": [1],
+                "dtype": "float32",
+                "low": [0.0],
+                "high": [1.0],
+            },
+            "metadata": {"render_modes": ["rgb_array"], "render_fps": 30},
+            "spec": {"id": "CartPole-v1", "max_episode_steps": 500},
             "observation": [0.0],
             "info": {},
         }
@@ -75,11 +84,7 @@ def auth_error_exc():
 
 
 def test_make_reset_step_flow(monkeypatch):
-    frames = [
-        make_ok_frame_discrete2(),
-        reset_ok_frame([3.14]),
-        step_ok_frame([2.72], reward=0.5, terminated=False, truncated=False),
-    ]
+    frames = [make_ok_frame_discrete2(), step_ok_frame([2.72], reward=0.5, terminated=False, truncated=False)]
     stub = StubWS(frames=frames)
 
     def fake_create_connection(url, header=None, timeout=None):
@@ -93,10 +98,19 @@ def test_make_reset_step_flow(monkeypatch):
     env = RemoteEnv("CartPole-v1", api_key="rk_test")
     # action_space parsed
     assert env.action_space.n == 2
-
-    obs, info = env.reset()
-    assert obs == [3.14]
-    assert info == {}
+    # observation_space parsed
+    assert env.observation_space.shape == (1,)
+    assert env.observation_space.dtype == np.float32
+    # render_mode and reward_range per Gymnasium API
+    assert env.render_mode is None
+    assert env.reward_range[0] == -float("inf") and env.reward_range[1] == float("inf")
+    # initial observation/info available immediately after make
+    assert env.initial_observation == [0.0]
+    assert env.initial_info == {}
+    # spec should be None; raw spec available via server_spec
+    assert env.spec is None
+    assert env.server_spec.get("id") == "CartPole-v1"
+    assert env.server_spec.get("max_episode_steps") == 500
 
     obs, reward, terminated, truncated, info = env.step(1)
     assert obs == [2.72]
@@ -105,8 +119,39 @@ def test_make_reset_step_flow(monkeypatch):
     assert not truncated
     assert info == {}
 
-    # Ensure ops were sent in order: make, reset, step
-    assert [m["op"] for m in stub.sent] == ["make", "reset", "step"]
+    # Ensure ops were sent in order: make, step
+    assert [m["op"] for m in stub.sent] == ["make", "step"]
+
+
+def test_reset_short_circuit_after_make(monkeypatch):
+    frames = [make_ok_frame_discrete2()]
+    stub = StubWS(frames=frames)
+
+    def fake_create_connection(url, header=None, timeout=None):
+        return stub
+
+    monkeypatch.setattr("roboactions.remote_env.websocket.create_connection", fake_create_connection)
+
+    env = RemoteEnv("CartPole-v1", api_key="rk_test")
+    obs, info = env.reset()  # should return cached initial obs without sending 'reset'
+    assert obs == [0.0]
+    assert info == {}
+    assert [m["op"] for m in stub.sent] == ["make"]
+
+def test_reset_with_options_sends_wire(monkeypatch):
+    frames = [make_ok_frame_discrete2(), reset_ok_frame([1.23])]
+    stub = StubWS(frames=frames)
+    monkeypatch.setattr(
+        "roboactions.remote_env.websocket.create_connection", lambda url, header=None, timeout=None: stub
+    )
+    env = RemoteEnv("CartPole-v1", api_key="rk_test")
+    # options prevents short-circuit; forces wire reset
+    obs, info = env.reset(options={"foo": 1})
+    assert obs == [1.23]
+    assert info == {}
+    assert [m["op"] for m in stub.sent] == ["make", "reset"]
+    # Ensure options were forwarded
+    assert stub.sent[1].get("options") == {"foo": 1}
 
 
 def test_needs_reset_enforced(monkeypatch):

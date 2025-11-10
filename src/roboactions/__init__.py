@@ -9,6 +9,7 @@ from .exceptions import (
     RoboActionsError,
 )
 from .policy import PolicyStatus, PolicySummary, RemotePolicy
+from . import remotegym as remotegym  # type: ignore[attr-defined]
 try:
     # Lazy import so base users don't need optional WS/render deps
     from .remote_env import RemoteEnv  # type: ignore[attr-defined]
@@ -20,7 +21,6 @@ except Exception:
                 "  pip install gymnasium websocket-client Pillow\n"
                 "and then retry."
             )
-
 __all__ = [
     "RemoteEnv",
     "RemotePolicy",
@@ -32,4 +32,5 @@ __all__ = [
     "NotFoundError",
     "RateLimitError",
     "__version__",
+    "remotegym",
 ]
