@@ -5,8 +5,7 @@ from gymnasium.wrappers import RecordVideo
 def main():
     env = remotegym.make("CartPole-v1", render_mode="rgb_array")
     env = RecordVideo(env, video_folder="videos")
-    obs, info = env.reset()
-    print(f"Info: {info}")
+    env.reset()
     for step in range(100):
         action = env.action_space.sample()
         _, _, terminated, truncated, _ = env.step(action)
