@@ -18,6 +18,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import time
 import os
 from dataclasses import dataclass
 from typing import Any, Mapping, MutableMapping, Optional, Tuple
@@ -41,7 +42,7 @@ except Exception as exc:  # pragma: no cover - exercised in environments lacking
     ) from exc
 
 from ._version import __version__
-from .config import DEFAULT_TIMEOUT
+from .config import DEFAULT_TIMEOUT, RetryConfig
 from .exceptions import (
     AuthenticationError,
     RoboActionsError,
@@ -167,6 +168,7 @@ class RemoteEnv(gym.Env):
         api_key: Optional[str] = None,
         base_url: str = DEFAULT_REMOTE_ENV_BASE_URL,
         timeout: float = DEFAULT_TIMEOUT,
+        retries: Optional[RetryConfig] = None,
         default_headers: Optional[Mapping[str, str]] = None,
         _ws_override: Optional[Any] = None,
     ) -> None:
@@ -185,6 +187,7 @@ class RemoteEnv(gym.Env):
         self._render_mode = render_mode
         self._timeout = float(timeout)
         self._base_url = base_url
+        self._retries: RetryConfig = retries or RetryConfig()
         self._ws: Optional[Any] = None
         self._needs_reset = False
         self._action_space: Optional["gym.spaces.Space"] = None
@@ -418,10 +421,28 @@ class RemoteEnv(gym.Env):
         if default_headers:
             headers.update(default_headers)
         header_list = [f"{k}: {v}" for k, v in headers.items()]
-        try:
-            self._ws = websocket.create_connection(url, header=header_list, timeout=self._timeout)
-        except Exception as exc:
-            raise TransportError("Failed to open WebSocket connection", original=exc) from exc
+        attempt = 0
+        max_attempts = self._retries.max_attempts if self._retries.enabled else 1
+        while True:
+            try:
+                self._ws = websocket.create_connection(url, header=header_list, timeout=self._timeout)
+                return
+            except Exception as exc:
+                attempt += 1
+                # Decide whether to retry:
+                # - If the exception exposes an HTTP-like status_code, only retry on typical transient codes
+                status_code = getattr(exc, "status_code", None)
+                is_transient_status = isinstance(status_code, int) and status_code in self._retries.status_forcelist
+                should_retry = (
+                    self._retries.enabled
+                    and attempt < max_attempts
+                    and (status_code is None or is_transient_status)
+                )
+                if not should_retry:
+                    raise TransportError("Failed to open WebSocket connection", original=exc) from exc
+                # Exponential backoff with factor
+                sleep_seconds = max(0.0, self._retries.backoff_factor * (2 ** (attempt - 1)))
+                time.sleep(sleep_seconds)
 
     @staticmethod
     def _build_ws_url(base_url: str) -> str:

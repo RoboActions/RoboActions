@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Mapping, Optional
 
+from .config import RetryConfig
+
 
 def make(
     env_id: str,
@@ -18,6 +20,7 @@ def make(
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
     timeout: Optional[float] = None,
+    retries: Optional[RetryConfig] = None,
     default_headers: Optional[Mapping[str, str]] = None,
 ):
     """Create and return a remote Gymnasium environment.
@@ -34,6 +37,7 @@ def make(
         api_key=api_key,
         base_url=base_url or DEFAULT_REMOTE_ENV_BASE_URL,
         timeout=timeout if timeout is not None else 10.0,  # default aligns with DEFAULT_TIMEOUT
+        retries=retries,
         default_headers=default_headers,
     )
 

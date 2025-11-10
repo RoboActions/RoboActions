@@ -213,8 +213,10 @@ Notes:
 
 ## Configuration
 
-- **Retries:** Configure automatic retries with `RemotePolicy(..., retries=RetryConfig())`
-- **Timeouts:** Set per-request timeouts via `policy.status(timeout=5.0)`
+- **Retries (HTTP):** Configure automatic retries with `RemotePolicy(..., retries=RetryConfig())`
+- **Timeouts (HTTP):** Set per-request timeouts via `policy.status(timeout=5.0)`
+- **Retries (RemoteEnv WebSocket):** Enable connection retry/backoff with `RemoteEnv(..., retries=RetryConfig())` or via the helper `remotegym.make(..., retries=RetryConfig())`. Transient handshake failures (e.g., 408/429/5xx) are retried up to `max_attempts` with exponential backoff using `backoff_factor`. Authentication and other non-transient errors are not retried.
+- **Timeouts (RemoteEnv WebSocket):** Control the WebSocket connect timeout with `RemoteEnv(..., timeout=...)` or `remotegym.make(..., timeout=...)`. Defaults: `60s` when constructing `RemoteEnv` directly; `10s` when using `remotegym.make` unless overridden.
 - **Custom base URL:** Override `base_url` to point at staging or self-hosted deployments
 - **Context Manager:** Use `with RemotePolicy(...) as policy:` for automatic session cleanup
 

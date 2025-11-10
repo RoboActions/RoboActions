@@ -1,4 +1,3 @@
-import base64
 import json
 
 import numpy as np
@@ -242,4 +241,72 @@ def test_authentication_close_1008(monkeypatch):
         RemoteEnv("CartPole-v1", api_key="rk_test")
     assert "Authentication failed" in str(ei.value)
 
+
+def test_connect_retries_success_on_second_attempt(monkeypatch):
+    calls = {"n": 0}
+    frames = [make_ok_frame_discrete2()]
+    stub = StubWS(frames=frames)
+
+    def flaky_create_connection(url, header=None, timeout=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise Exception("transient network error")
+        return stub
+
+    monkeypatch.setattr("roboactions.remote_env.websocket.create_connection", flaky_create_connection)
+
+    from roboactions.config import RetryConfig
+    RemoteEnv("CartPole-v1", api_key="rk_test", retries=RetryConfig(max_attempts=3, backoff_factor=0.0))
+    # ensure one make sent
+    assert [m["op"] for m in stub.sent] == ["make"]
+    # ensure it actually retried exactly once
+    assert calls["n"] == 2
+
+
+def test_connect_does_not_retry_on_401(monkeypatch):
+    class HandshakeError(Exception):
+        def __init__(self, status_code):
+            super().__init__(f"status {status_code}")
+            self.status_code = status_code
+
+    calls = {"n": 0}
+
+    def create_connection_401(url, header=None, timeout=None):
+        calls["n"] += 1
+        raise HandshakeError(401)
+
+    monkeypatch.setattr("roboactions.remote_env.websocket.create_connection", create_connection_401)
+
+    from roboactions.config import RetryConfig
+    import pytest
+
+    with pytest.raises(Exception):
+        RemoteEnv("CartPole-v1", api_key="rk_test", retries=RetryConfig(max_attempts=3, backoff_factor=0.0))
+    # should not retry past the first attempt
+    assert calls["n"] == 1
+
+
+def test_connect_retries_on_503_then_succeeds(monkeypatch):
+    class HandshakeError(Exception):
+        def __init__(self, status_code):
+            super().__init__(f"status {status_code}")
+            self.status_code = status_code
+
+    calls = {"n": 0}
+    frames = [make_ok_frame_discrete2()]
+    stub = StubWS(frames=frames)
+
+    def create_connection_503_then_ok(url, header=None, timeout=None):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise HandshakeError(503)
+        return stub
+
+    monkeypatch.setattr("roboactions.remote_env.websocket.create_connection", create_connection_503_then_ok)
+
+    from roboactions.config import RetryConfig
+
+    RemoteEnv("CartPole-v1", api_key="rk_test", retries=RetryConfig(max_attempts=3, backoff_factor=0.0))
+    assert [m["op"] for m in stub.sent] == ["make"]
+    assert calls["n"] == 3
 
