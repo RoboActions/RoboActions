@@ -1,21 +1,18 @@
 from roboactions import remotegym
+from gymnasium.wrappers import RecordVideo
 
 
 def main():
     env = remotegym.make("CartPole-v1", render_mode="rgb_array")
+    env = RecordVideo(env, video_folder="videos")
     obs, info = env.reset()
     print(f"Info: {info}")
-    for _ in range(100):
+    for step in range(100):
         action = env.action_space.sample()
-        obs, reward, terminated, truncated, info = env.step(action)
-        print(f"Observation: {obs}")    
-        print(f"Reward: {reward}")
-        print(f"Terminated: {terminated}")
-        print(f"Truncated: {truncated}")
-        print(f"Info: {info}")
+        _, _, terminated, truncated, _ = env.step(action)
+        print(f"Step {step}")
         if terminated or truncated:
-            obs, info = env.reset()
-            print(f"Reset Info: {info}")
+            env.reset()
     env.close()
 
 

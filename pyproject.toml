@@ -35,6 +35,7 @@ dependencies = [
     "torch",
     "websocket-client>=1.8.0",
     "gymnasium>=0.29.0",
+    "gymnasium[other]",
     "Pillow>=10.0.0"
 ]
 
