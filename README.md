@@ -177,6 +177,32 @@ for key, shape in policy.observation_shapes:
     print(f"{key}: {shape}")
 ```
 
+## Remote Gymnasium Environments
+
+Interact with Gymnasium-compatible environments hosted via RoboActions over a secure WebSocket.
+
+```python
+from roboactions import RemoteEnv
+
+# Reads ROBOACTIONS_API_KEY from environment if not provided explicitly
+env = RemoteEnv("CartPole-v1", render_mode="rgb_array")
+
+# Standard Gymnasium flow
+obs, info = env.reset(seed=123)
+for _ in range(100):
+    action = env.action_space.sample()  # gymnasium.spaces.Space
+    obs, reward, terminated, truncated, info = env.step(action)
+    frame = env.render()  # numpy.ndarray (H, W, 3) when render_mode == "rgb_array"
+    if terminated or truncated:
+        obs, info = env.reset()
+env.close()
+```
+
+Notes:
+- `render()` returns a NumPy RGB array when `render_mode="rgb_array"`; otherwise returns `None`.
+- The client pre-validates actions using the real Gymnasium `action_space`.
+- If a step ends an episode, call `reset()` before the next `step()`.
+
 ## Configuration
 
 - **Retries:** Configure automatic retries with `RemotePolicy(..., retries=RetryConfig())`

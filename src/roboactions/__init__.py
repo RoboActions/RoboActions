@@ -9,8 +9,20 @@ from .exceptions import (
     RoboActionsError,
 )
 from .policy import PolicyStatus, PolicySummary, RemotePolicy
+try:
+    # Lazy import so base users don't need optional WS/render deps
+    from .remote_env import RemoteEnv  # type: ignore[attr-defined]
+except Exception:
+    class RemoteEnv:  # type: ignore[no-redef]
+        def __init__(self, *args, **kwargs) -> None:
+            raise RuntimeError(
+                "RemoteEnv requires optional dependencies. Install with:\n"
+                "  pip install gymnasium websocket-client Pillow\n"
+                "and then retry."
+            )
 
 __all__ = [
+    "RemoteEnv",
     "RemotePolicy",
     "PolicyStatus",
     "PolicySummary",
